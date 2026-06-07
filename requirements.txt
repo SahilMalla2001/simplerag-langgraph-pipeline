@@ -3,15 +3,14 @@ langgraph>=0.2.0
 langchain>=0.3.0
 langchain-core>=0.3.0
 langchain-community>=0.3.0
-langchain-groq>=0.2.0
 
-# LLM - Google Gemini (FREE tier, no credit card)
+# LLM — Google Gemini (FREE tier, no credit card required)
 google-genai>=2.0.0
 
-# Embeddings (local, no API key needed)
+# Embeddings (runs locally, no API key needed)
 sentence-transformers>=3.0.0
 
-# Vector Store
+# Vector Store (local, in-memory)
 faiss-cpu>=1.8.0
 
 # PDF Parsing
@@ -29,4 +28,3 @@ numpy>=1.26.0
 pandas>=2.2.0
 tabulate>=0.9.0
 tqdm>=4.66.0
-tiktoken>=0.7.0

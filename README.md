@@ -1,19 +1,20 @@
-# 🔍 RAG Pipeline with LangGraph + Groq + FAISS
+# RAG Pipeline with LangGraph + Google Gemini (FREE) + FAISS
 
-A production-style **Retrieval-Augmented Generation (RAG)** pipeline built with:
+A two-agent **Retrieval-Augmented Generation (RAG)** pipeline for question-answering over PDF documents.
+
 - **LangGraph** — multi-agent orchestration
-- **Groq** — blazing-fast LLM inference (llama3-70b-8192)
+- **Google Gemini 2.5 Flash** — LLM inference on the free tier (no credit card)
 - **FAISS** — local semantic vector search
-- **Sentence Transformers** — free local embeddings
+- **Sentence Transformers** — local embeddings, runs fully offline
 - **Token Mapper Agent** — real-time per-node token usage tracking
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### 1. Prerequisites
-- Python 3.10+
-- A free Groq API key → https://console.groq.com
+- Python 3.10 or higher
+- A free Gemini API key → https://aistudio.google.com/apikey (no credit card, takes 30 seconds)
 
 ### 2. Install Dependencies
 ```bash
@@ -21,82 +22,121 @@ pip install -r requirements.txt
 ```
 
 ### 3. Configure API Key
-Edit `.env` and add your Groq key:
+Edit `.env` and add your Gemini key:
 ```
-GROQ_API_KEY=gsk_xxxxxxxxxxxxxxxxxxxx
+GEMINI_API_KEY=AIzaSy...
 ```
 
 ### 4. Add Your PDF
-Place your PDF file in this folder and note its filename.
+Drop your PDF file into this folder.
 
 ### 5. Launch the Notebook
 ```bash
-jupyter notebook pipeline.ipynb
+python -m jupyter notebook pipeline.ipynb
 ```
-Then run all cells top to bottom (Cell → Run All).
+- Run **Cell 0** first to install packages into the active kernel
+- Edit `PDF_PATH` in Cell 2 to match your filename
+- Edit `QUESTION` in Cell 8
+- Run all cells top to bottom
 
 ---
 
-## 🏗️ Pipeline Architecture
+## Pipeline Architecture
 
 ```
 PDF Input
-    │
-    ▼
-[Node 1: ingest_pdf]        ← Parse PDF pages → text chunks
-    │
-    ▼
-[Node 2: embed_and_index]   ← Embed chunks → FAISS index
-    │
-    ▼
-[Node 3: retrieve]          ← Semantic search → top-k chunks
-    │
-    ▼
-[Node 4: generate_answer]   ← Groq LLM → grounded answer
-    │
-    ▼
-[Node 5: token_summary]     ← Token Mapper → per-node token table
+    |
+[ingest_pdf]        Parse PDF pages into overlapping text chunks
+    |
+[embed_and_index]   Embed chunks locally via sentence-transformers -> FAISS index
+    |
+[retrieve]          Semantic search: embed question -> find top-K similar chunks
+    |
+[generate_answer]   Build RAG prompt -> call Gemini 2.5 Flash -> grounded answer
+    |
+[token_summary]     Token Mapper Agent finalises per-node usage record
+    |
+   END
 ```
 
 ---
 
-## 📊 Token Mapper Agent
+## Two Agents
 
-After every run, the **Token Mapper Agent** prints a table like:
+### Agent 1 — RAG Agent
+Handles the full retrieval and generation pipeline across 4 LangGraph nodes:
+`ingest_pdf` → `embed_and_index` → `retrieve` → `generate_answer`
 
-```
-╒══════════════════════╤═══════════════╤════════════════╤═══════════╕
-│ Node                 │ Input Tokens  │ Output Tokens  │ Est. Cost │
-╞══════════════════════╪═══════════════╪════════════════╪═══════════╡
-│ ingest_pdf           │ —             │ —              │ $0.0000   │
-│ embed_and_index      │ —             │ —              │ $0.0000   │
-│ retrieve             │ —             │ —              │ $0.0000   │
-│ generate_answer      │ 1,248         │ 312            │ $0.0002   │
-│ TOTAL                │ 1,248         │ 312            │ $0.0002   │
-╘══════════════════════╧═══════════════╧════════════════╧═══════════╛
-```
+### Agent 2 — Token Mapper Agent
+Wraps every node with `start_node()` / `end_node()` hooks and records:
+- Input tokens and output tokens per node (sourced directly from the Gemini API response)
+- Elapsed time per node in milliseconds
+- A styled HTML summary table rendered at the end of each run
+
+Since the pipeline runs on the **Gemini free tier**, cost is always **$0.00**.
 
 ---
 
-## ⚙️ Configuration (Cell 2 of the notebook)
+## Token Mapper Output (example)
+
+| Node | Input Tokens | Output Tokens | Total Tokens | Time (ms) | Cost |
+|---|---|---|---|---|---|
+| ingest_pdf | — | — | — | 108 | $0.00 [FREE] |
+| embed_and_index | — | — | — | 347 | $0.00 [FREE] |
+| retrieve | — | — | — | 21 | $0.00 [FREE] |
+| generate_answer | 673 | 41 | 714 | 3,460 | $0.00 [FREE] |
+| token_summary | — | — | — | 0 | $0.00 [FREE] |
+| **TOTAL** | **673** | **41** | **714** | **3,936** | **$0.00 [FREE TIER]** |
+
+---
+
+## Configuration (Cell 2)
 
 | Parameter | Default | Description |
 |---|---|---|
-| `PDF_PATH` | `"sample.pdf"` | Path to your PDF |
-| `GROQ_MODEL` | `"llama3-70b-8192"` | Groq model to use |
+| `PDF_PATH` | your filename | PDF file in the project folder |
+| `GEMINI_MODEL` | `gemini-2.5-flash` | Model to use (all options are free tier) |
 | `CHUNK_SIZE` | `500` | Characters per chunk |
-| `CHUNK_OVERLAP` | `50` | Overlap between chunks |
-| `TOP_K` | `4` | Number of chunks to retrieve |
+| `CHUNK_OVERLAP` | `50` | Overlap between adjacent chunks |
+| `TOP_K` | `4` | Number of chunks to retrieve per question |
+| `EMBEDDING_MODEL` | `all-MiniLM-L6-v2` | Local embedding model (offline, no API) |
 
 ---
 
-## 📁 Project Structure
+## Notebook Structure
+
+| Cell | Purpose |
+|---|---|
+| 0 | Auto-install all packages into the active Jupyter kernel |
+| 1 | Imports and API key validation |
+| 2 | Configuration |
+| 3 | Token Mapper Agent (Agent 2) |
+| 4 | PipelineState schema definition |
+| 5 | Load local embedding model |
+| 6 | 5 RAG pipeline node functions (Agent 1) |
+| 7 | LangGraph graph build and compile |
+| 8 | Run the pipeline — shows answer only |
+| 9 | Token Mapper Agent report |
+| 10 | Follow-up questions (reuses FAISS index, no re-embedding) |
+
+---
+
+## Project Structure
 
 ```
-D:\rag-langgraph-pipeline\
-├── pipeline.ipynb      ← Main notebook (start here)
-├── requirements.txt    ← Python dependencies
-├── .env                ← Your API key (keep private!)
-├── README.md           ← This file
-└── your_file.pdf       ← Drop your PDF here
+rag-langgraph-pipeline/
+├── pipeline.ipynb      <- Main notebook (start here)
+├── run_pipeline.py     <- Same pipeline as a terminal script
+├── requirements.txt    <- Python dependencies
+├── .env                <- Your API key (keep private, gitignored)
+├── .gitignore          <- Ignores .env and your PDF
+└── README.md           <- This file
 ```
+
+---
+
+## Free Tier Limits (Gemini 2.5 Flash)
+
+- 500 requests / day
+- 1,000,000 tokens / day
+- Cost: $0.00
